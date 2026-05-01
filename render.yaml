@@ -2,20 +2,15 @@
 # =============================================================================
 # Render.com Blueprint for ShiftWatch
 # =============================================================================
-# This file deploys database, backend API, and frontend in one go.
-# =============================================================================
 
 databases:
   - name: shiftwatch-db
     databaseName: shiftwatch_db
-    user: shiftwatch_user   # ✅ fixed (was 'postgres')
+    user: shiftwatch_user
     plan: free
     postgresMajorVersion: "16"
 
 services:
-  # ---------------------------------------------------------------------------
-  # Backend API (Node/Express)
-  # ---------------------------------------------------------------------------
   - type: web
     name: shiftwatch-api
     runtime: node
@@ -38,7 +33,6 @@ services:
       - key: JWT_SECRET
         generateValue: true
 
-      # Database connection (auto-filled by Render)
       - key: DB_HOST
         fromDatabase:
           name: shiftwatch-db
@@ -64,13 +58,9 @@ services:
           name: shiftwatch-db
           property: password
 
-      # Set this AFTER frontend deploy
       - key: FRONTEND_URL
         sync: false
 
-  # ---------------------------------------------------------------------------
-  # Frontend (React Static Site)
-  # ---------------------------------------------------------------------------
   - type: web
     name: shiftwatch-ui
     runtime: static
@@ -79,7 +69,6 @@ services:
     staticPublishPath: ./build
 
     envVars:
-      # Set this AFTER backend deploy
       - key: REACT_APP_API_URL
         sync: false
 
