@@ -1,0 +1,81 @@
+# =============================================================================
+# Render.com Blueprint for ShiftWatch
+# =============================================================================
+# This file deploys all three services (database, backend API, frontend) in one
+# click. After creating a "Blueprint" on Render and pointing it at this repo,
+# Render will provision everything and wire env vars together automatically.
+# =============================================================================
+
+databases:
+  - name: shiftwatch-db
+    databaseName: shiftwatch_db
+    user: postgres
+    plan: free            # 90-day expiry on the free tier; upgrade to "starter" ($7/mo) for production
+    postgresMajorVersion: "16"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend API (Node/Express)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: shiftwatch-api
+    runtime: node
+    plan: free            # Free tier sleeps after 15 min idle; upgrade to "starter" for always-on
+    rootDir: backend
+    buildCommand: npm install --omit=dev --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000      # Render exposes whatever PORT you set
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: JWT_SECRET
+        generateValue: true   # Render generates a strong random secret automatically
+      # Database wiring — Render fills these from the linked database above
+      - key: DB_HOST
+        fromDatabase:
+          name: shiftwatch-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: shiftwatch-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: shiftwatch-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: shiftwatch-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: shiftwatch-db
+          property: password
+      # CORS — point at the frontend URL once it exists. After first deploy,
+      # copy the static-site URL from Render and paste it into this env var.
+      - key: FRONTEND_URL
+        sync: false       # You'll set this manually after the frontend deploys
+
+  # ---------------------------------------------------------------------------
+  # Frontend (React static site)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: shiftwatch-ui
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install --no-audit --no-fund && npm run build
+    staticPublishPath: ./build
+    envVars:
+      # Bake the API URL into the React build. After the backend deploys, copy
+      # its URL (e.g. https://shiftwatch-api.onrender.com/api) and paste here.
+      - key: REACT_APP_API_URL
+        sync: false
+    routes:
+      # SPA fallback so React Router handles client-side routing
+      - type: rewrite
+        source: /*
+        destination: /index.html

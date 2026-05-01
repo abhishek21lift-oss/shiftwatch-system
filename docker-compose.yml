@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shiftwatch_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shiftwatch_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: shiftwatch_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    # Map to 5433 on the host so a local Postgres install on 5432 doesn't collide.
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shiftwatch_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shiftwatch_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: shiftwatch_db
+      DB_USER: postgres
+      DB_PASSWORD: shiftwatch_secret
+      JWT_SECRET: change_this_to_a_secure_random_string_in_production_min_64_chars
+      JWT_EXPIRES_IN: 8h
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: /api
+    container_name: shiftwatch_ui
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
